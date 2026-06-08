@@ -139,15 +139,15 @@
                     <h3 class="font-bold text-slate-700">配置管理</h3>
                 </div>
                 <span class="text-xs px-2.5 py-1 rounded-full font-medium transition-all duration-200"
-                      :class="isStatic ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'"
-                      x-text="isStatic ? '已保存' : '编辑中'"></span>
+                      :class="{'bg-emerald-100 text-emerald-700': saveState === 'saved', 'bg-amber-100 text-amber-700': saveState === 'saving' || saveState === 'invalid', 'bg-red-100 text-red-700': saveState === 'error'}"
+                      x-text="({saved:'已保存', saving:'保存中…', invalid:'JSON 无效', error:'保存失败'})[saveState]"></span>
             </div>
 
             <div class="p-5 flex-1 overflow-y-auto space-y-4">
                 <div class="space-y-1">
                     <label class="block config-label">输入文件夹</label>
                     <div class="relative">
-                        <input type="text" x-model="config.input_folder" :disabled="isStatic"
+                        <input type="text" x-model="config.input_folder" @input="scheduleSave()"
                                class="w-full h-10 pl-10 pr-4 rounded-xl border border-slate-200 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 outline-none transition-all disabled:bg-slate-50 disabled:text-slate-400 text-sm">
                         <svg class="w-5 h-5 text-slate-400 absolute left-3 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
@@ -159,7 +159,7 @@
                     <label class="block config-label">输出文件夹</label>
                     <div class="relative">
                         <label>
-                            <input type="text" x-model="config.output_folder" :disabled="isStatic"
+                            <input type="text" x-model="config.output_folder" @input="scheduleSave()"
                                    class="w-full h-10 pl-10 pr-4 rounded-xl border border-slate-200 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 outline-none transition-all disabled:bg-slate-50 disabled:text-slate-400 text-sm">
                         </label>
                         <svg class="w-5 h-5 text-slate-400 absolute left-3 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -176,7 +176,7 @@
                     </label>
                     <input type="checkbox"
                            x-model="config.override_existed"
-                           :disabled="isStatic"
+                           @change="scheduleSave()"
                            id="override_existed"
                            class="w-4 h-4 rounded border-slate-300 focus:ring-2 disabled:opacity-50 cursor-pointer transition-all duration-200"
                            :class="config.override_existed ? 'accent-red-600' : 'accent-primary-500'">
@@ -185,10 +185,10 @@
                 <div class="space-y-1">
                     <label class="config-label">输出质量: <span x-text="config.quality" class="text-primary-600 font-bold"></span>%</label>
                     <div class="flex items-center gap-3">
-                        <input type="range" x-model="config.quality" :disabled="isStatic"
+                        <input type="range" x-model="config.quality" @input="scheduleSave()"
                                min="60" max="100" step="1"
                                class="flex-1 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-primary-500 disabled:opacity-50">
-                        <input type="number" x-model="config.quality" :disabled="isStatic"
+                        <input type="number" x-model="config.quality" @input="scheduleSave()"
                                min="60" max="100" step="1"
                                class="w-16 h-10 px-3 text-center rounded-xl border border-slate-200 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 outline-none transition-all disabled:bg-slate-50">
                     </div>
@@ -201,14 +201,12 @@
                             <label class="text-xs text-slate-500">选择模板:</label>
                             <select x-model="config.template_name"
                                     @change="switchTemplate($event.target.value)"
-                                    :disabled="isStatic"
                                     class="h-8 px-2 text-xs rounded-lg border border-slate-200 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 outline-none transition-all disabled:bg-slate-50 disabled:opacity-50">
                                 <template x-for="template in availableTemplates" :key="template">
                                     <option :value="template" x-text="template"></option>
                                 </template>
                             </select>
                             <button @click="createNewTemplate()"
-                                    :disabled="isStatic"
                                     title="新建空白模板"
                                     class="h-8 px-2 text-xs rounded-lg border border-slate-200 hover:bg-emerald-50 hover:border-emerald-300 hover:text-emerald-600 text-slate-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -231,27 +229,9 @@
             </div>
 
             <div class="p-4 border-t border-slate-100 bg-gradient-to-r from-slate-50 to-white">
-                <template x-if="isStatic">
-                    <button @click="enableEdit()"
-                            class="w-full py-2.5 bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 text-white rounded-xl font-medium shadow-lg shadow-primary-500/30 transition-all duration-200 flex items-center justify-center gap-2">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                        </svg>
-                        编辑配置
-                    </button>
-                </template>
-                <template x-if="!isStatic">
-                    <div class="flex gap-2">
-                        <button @click="resetConfig()"
-                                class="flex-1 py-2.5 border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-xl font-medium transition-all duration-200">
-                            取消
-                        </button>
-                        <button @click="saveConfig()"
-                                class="flex-1 py-2.5 bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 text-white rounded-xl font-medium shadow-lg shadow-primary-500/30 transition-all duration-200">
-                            保存配置
-                        </button>
-                    </div>
-                </template>
+                <p class="text-center text-xs text-slate-400">
+                    配置改动会自动保存，无需手动操作
+                </p>
             </div>
         </div>
 
@@ -595,7 +575,7 @@
                     <div class="text-right">
                         <span class="text-xs px-3 py-1.5 rounded-xl font-medium transition-all duration-200"
                               :class="isValidConfig ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'"
-                              x-text="isValidConfig ? '配置有效' : '需保存配置'"></span>
+                              x-text="saveState === 'invalid' ? '模板 JSON 无效' : (saveState === 'error' ? '保存失败' : '配置已自动保存')"></span>
                     </div>
                 </div>
 
@@ -608,7 +588,7 @@
                     </svg>
                     开始执行
                 </button>
-                <p class="mt-2 text-center text-xs text-slate-400" x-show="!canStart">请保存配置并选择文件</p>
+                <p class="mt-2 text-center text-xs text-slate-400" x-show="!canStart">请选择要处理的文件</p>
             </div>
         </div>
     </div>
@@ -808,7 +788,10 @@
 
     function app() {
         return {
-            isStatic: true,
+            saveState: 'saved', // saved | saving | invalid | error
+            _saveTimer: null,
+            _suppressSave: false,
+            _lastFolders: {input: '', output: ''},
             loading: {files: false, process: false},
             config: {input_folder: '', output_folder: '', template: '{}', template_name: '', quality: 100, override_existed: false},
             availableTemplates: [],
@@ -873,11 +856,11 @@
             },
 
             get isValidConfig() {
-                return this.isStatic;
+                return this.saveState !== 'invalid' && this.saveState !== 'error';
             },
 
             get canStart() {
-                return this.isStatic && this.selectedItems.length > 0 && !this.progress.active;
+                return this.selectedItems.length > 0 && !this.progress.active;
             },
 
             async init() {
@@ -910,21 +893,48 @@
                 this.aceEditor.setTheme("ace/theme/textmate");
                 this.aceEditor.session.setMode("ace/mode/json");
                 this.aceEditor.setShowPrintMargin(false);
-                this.aceEditor.setReadOnly(true);
 
                 this.aceEditor.on('change', () => {
                     this.config.template = this.aceEditor.getValue();
+                    if (!this._suppressSave) this.scheduleSave();
                 });
             },
 
-            enableEdit() {
-                this.isStatic = false;
-                this.aceEditor.setReadOnly(false);
-                this.aceEditor.container.style.backgroundColor = "#fff";
+            scheduleSave() {
+                if (this._suppressSave) return;
+                this.saveState = 'saving';
+                clearTimeout(this._saveTimer);
+                this._saveTimer = setTimeout(() => this.autoSave(), 800);
             },
 
-            async resetConfig() {
-                await this.fetchConfig();
+            async autoSave() {
+                clearTimeout(this._saveTimer);
+                const jsonVal = this.aceEditor.getValue();
+                try {
+                    JSON.parse(jsonVal);
+                } catch (e) {
+                    this.saveState = 'invalid';
+                    return;
+                }
+                this.saveState = 'saving';
+                try {
+                    const res = await fetch('/api/v1/config', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({...this.config, template: jsonVal})
+                    });
+                    if (!res.ok) throw new Error("服务端错误");
+                    this.saveState = 'saved';
+                    // 仅当输入/输出目录变化时才刷新文件树，避免改数值/模板也折叠目录树
+                    if (this.config.input_folder !== this._lastFolders.input ||
+                        this.config.output_folder !== this._lastFolders.output) {
+                        this._lastFolders = {input: this.config.input_folder, output: this.config.output_folder};
+                        this.fetchFiles(true);
+                    }
+                } catch (e) {
+                    this.saveState = 'error';
+                    this.toast("自动保存失败: " + e.message, 'error');
+                }
             },
 
             async fetchConfig() {
@@ -935,14 +945,15 @@
 
                     if (data) {
                         this.config = {...data};
+                        this._lastFolders = {input: data.input_folder, output: data.output_folder};
                         let tplStr = typeof this.config.template === 'object' ?
                             JSON.stringify(this.config.template, null, 2) :
                             this.config.template;
 
+                        this._suppressSave = true;
                         this.aceEditor.setValue(tplStr || '{}', -1);
-                        this.isStatic = true;
-                        this.aceEditor.setReadOnly(true);
-                        this.aceEditor.container.style.backgroundColor = "#f9fafb";
+                        this._suppressSave = false;
+                        this.saveState = 'saved';
 
                         // 获取模板列表
                         if (data.templates) {
@@ -965,9 +976,12 @@
                         JSON.stringify(json.content, null, 2) :
                         json.content;
 
+                    this._suppressSave = true;
                     this.aceEditor.setValue(tplStr || '{}', -1);
+                    this._suppressSave = false;
                     this.config.template = tplStr;
                     this.config.template_name = templateName;
+                    await this.autoSave();
                     this.toast(`已切换到模板: ${templateName}`, 'success');
                 } catch (e) {
                     this.toast("切换模板失败: " + e.message, 'error');
@@ -995,11 +1009,13 @@
                         // 刷新模板列表
                         await this.fetchConfig();
 
-                        // 切换到新模板并启用编辑
+                        // 切换到新模板
                         this.config.template_name = templateName;
                         this.config.template = '[]';
+                        this._suppressSave = true;
                         this.aceEditor.setValue('[]', -1);
-                        this.enableEdit();
+                        this._suppressSave = false;
+                        await this.autoSave();
 
                         this.toast(`已创建新模板: ${templateName}`, 'success');
                     } catch (e) {
@@ -1040,41 +1056,13 @@
                         // 切换到新模板
                         this.config.template_name = templateName;
                         this.config.template = jsonVal;
+                        await this.autoSave();
 
                         this.toast(`已另存为模板: ${templateName}`, 'success');
                     } catch (e) {
                         this.toast("另存为失败: " + e.message, 'error');
                     }
                 });
-            },
-
-            async saveConfig() {
-                const jsonVal = this.aceEditor.getValue();
-                try {
-                    JSON.parse(jsonVal);
-                } catch (e) {
-                    this.toast("JSON 格式错误", 'error');
-                    return;
-                }
-
-                try {
-                    const res = await fetch('/api/v1/config', {
-                        method: 'POST',
-                        headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({...this.config, template: jsonVal})
-                    });
-
-                    if (res.ok) {
-                        this.isStatic = true;
-                        this.aceEditor.setReadOnly(true);
-                        this.toast("配置已保存", 'success');
-                        this.fetchFiles(true);
-                    } else {
-                        throw new Error("服务端错误");
-                    }
-                } catch (e) {
-                    this.toast("保存失败: " + e.message, 'error');
-                }
             },
 
             async fetchFiles(renderInput=true) {
@@ -1150,6 +1138,20 @@
             },
 
             async startProcess() {
+                // 开始前确保最新配置已保存到服务端（处理逻辑只读取服务端已存配置）
+                clearTimeout(this._saveTimer);
+                try {
+                    JSON.parse(this.aceEditor.getValue());
+                } catch (e) {
+                    this.toast("模板 JSON 格式错误，请修正后再开始", 'error');
+                    return;
+                }
+                await this.autoSave();
+                if (this.saveState === 'error') {
+                    this.toast("配置保存失败，已取消处理", 'error');
+                    return;
+                }
+
                 // 重置进度状态
                 this.progress.active = true;
                 this.progress.complete = false;
